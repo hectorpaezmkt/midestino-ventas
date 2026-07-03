@@ -1,10 +1,24 @@
-import React from 'react'
-import ReactDOM from 'react-dom/client'
-import App from './App.jsx'
-import './index.css'
-
-ReactDOM.createRoot(document.getElementById('root')).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
-)
+/** @type {import('tailwindcss').Config} */
+export default {
+  content: ['./index.html', './src/**/*.{js,jsx}'],
+  theme: {
+    extend: {
+      colors: {
+        teal: {
+          DEFAULT: '#01BDC1',
+          dark: '#019A9D',
+          light: '#E0F8F8',
+        },
+        orange: {
+          DEFAULT: '#FE7203',
+          dark: '#D45F00',
+          light: '#FFEDDC',
+        },
+      },
+      fontFamily: {
+        sans: ['Poppins', 'system-ui', 'sans-serif'],
+      },
+    },
+  },
+  plugins: [],
+}

@@ -1,15 +1,13 @@
-import { createClient } from '@supabase/supabase-js'
+-- Migración: soporte para importar leads de Meta (Facebook/Instagram Lead Ads)
+-- Ejecutar en Supabase → SQL Editor → New query → pegar todo → Run
 
-// Mi Destino Viajes - proyecto Supabase (gwptesyunzqigtmbiddy)
-// Clave pública (anon/publishable) protegida por RLS. Es segura para exponer en el cliente:
-// la base no tiene login propio (app de uso interno del equipo), así que las políticas
-// de la base son las que controlan el acceso a los datos, no esta clave.
-const SUPABASE_URL = 'https://gwptesyunzqigtmbiddy.supabase.co'
-const SUPABASE_ANON_KEY =
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd3cHRlc3l1bnpxaWd0bWJpZGR5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI4NDIwNTEsImV4cCI6MjA5ODQxODA1MX0.j2-OP3WFMcCdNyinTk1fp6Ox97diy3ByoxqpPR0P6AM'
+-- 1. Columna para identificar de forma única cada lead de Meta y no duplicarlo
+alter table leads
+  add column if not exists meta_lead_id text unique;
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  realtime: {
-    params: { eventsPerSecond: 5 },
-  },
-})
+-- 2. Columna para saber de qué anuncio/campaña vino el lead
+alter table leads
+  add column if not exists origen text;
+
+-- 3. Índice para que la búsqueda de duplicados sea rápida
+create index if not exists idx_leads_meta_lead_id on leads (meta_lead_id);
