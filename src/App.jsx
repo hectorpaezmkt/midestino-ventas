@@ -3,6 +3,7 @@ import BottomNav from './components/BottomNav'
 import LeadsView from './views/LeadsView'
 import VentasView from './views/VentasView'
 import GastosView from './views/GastosView'
+import PublicidadView from './views/PublicidadView'
 import MensajesView from './views/MensajesView'
 import StatsView from './views/StatsView'
 import { ToastProvider } from './components/Toast'
@@ -27,6 +28,7 @@ export default function App() {
           {tab === 'leads' && <LeadsView />}
           {tab === 'ventas' && <VentasView />}
           {tab === 'gastos' && <GastosView />}
+          {tab === 'publicidad' && <PublicidadView />}
           {tab === 'mensajes' && <MensajesView />}
           {tab === 'stats' && <StatsView />}
         </main>

@@ -7,6 +7,7 @@ export const ESTADOS = [
   { value: 'senado', label: 'Señado', color: '#FE7203', bg: '#FFEDDC' },
   { value: 'viajo', label: 'Ya Viajó', color: '#15803d', bg: '#dcfce7' },
   { value: 'perdido', label: 'Perdido', color: '#525252', bg: '#e5e5e5' },
+  { value: 'no_sirve', label: 'No sirve', color: '#92400e', bg: '#fef3c7' },
   { value: 'personalizado', label: 'Personalizado', color: '#7c3aed', bg: '#ede9fe' },
 ]
 

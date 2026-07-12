@@ -146,6 +146,8 @@ export const handler = async () => {
         estado: 'nuevo',
         meta_lead_id: metaId,
         origen: origen || null,
+        campaign_name: row['campaign_name'] || null,
+        ad_name: row['ad_name'] || null,
       },
       nota: notaPartes.join('\n'),
     })

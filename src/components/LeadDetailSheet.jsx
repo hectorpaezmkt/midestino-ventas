@@ -74,6 +74,23 @@ export default function LeadDetailSheet({ lead, onClose }) {
     }
   }
 
+  async function eliminarLead() {
+    if (!confirm(`¿Eliminar a "${lead.nombre_completo || 'este lead'}"? Esta acción no se puede deshacer.`)) return
+    setSaving(true)
+    try {
+      await supabase.from('seguimientos').delete().eq('lead_id', lead.id)
+      const { error } = await supabase.from('leads').delete().eq('id', lead.id)
+      if (error) throw error
+      showToast('Lead eliminado')
+      onClose()
+    } catch (err) {
+      console.error(err)
+      showToast('No se pudo eliminar', 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40" onClick={onClose}>
       <div
@@ -192,7 +209,10 @@ export default function LeadDetailSheet({ lead, onClose }) {
           )}
         </div>
 
-        <button onClick={onClose} className="mt-5 w-full py-2 text-sm font-medium text-slate-400">
+        <button onClick={eliminarLead} disabled={saving} className="mt-6 w-full py-2 text-sm font-medium text-red-500 disabled:opacity-60">
+          Eliminar lead
+        </button>
+        <button onClick={onClose} className="mt-1 w-full py-2 text-sm font-medium text-slate-400">
           Cerrar
         </button>
       </div>
