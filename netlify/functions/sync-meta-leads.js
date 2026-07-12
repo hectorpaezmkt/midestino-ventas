@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import Papa from 'papaparse'
 
 // ─────────────────────────────────────────────────────────────
-// Variables de entorno (configurar en Netlify → Site settings →
+// Variables de entorno (configuradas en Netlify → Site settings →
 // Environment variables). Nunca van hardcodeadas acá.
 // ─────────────────────────────────────────────────────────────
 const SHEET_ID = process.env.META_SHEET_ID
@@ -19,16 +19,12 @@ function quitarAcentos(str) {
   return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 }
 
-// Intenta sacar un número de alumnos de una respuesta libre. Si no hay
-// dígitos (ej: "familiar"), devuelve null y el texto crudo queda en la nota.
 function parseAlumnos(raw) {
   if (!raw) return null
   const m = raw.match(/\d+/)
   return m ? parseInt(m[0], 10) : null
 }
 
-// Intenta interpretar fechas tipo "10/06/2026" o "20 de agosto". Si la
-// respuesta es algo como "sí" / "no" / "familiar", devuelve null.
 function parseFecha(raw) {
   if (!raw) return null
   const t = raw.trim().toLowerCase()
@@ -100,28 +96,31 @@ export const handler = async () => {
 
   const { data: rows } = Papa.parse(csvText, { header: true, skipEmptyLines: true })
 
-  let creados = 0
-  let omitidos = 0
-  const errores = []
+  // ── 1. Traer de una sola vez todos los meta_lead_id que ya existen ──
+  const { data: existentesData, error: errExist } = await supabase
+    .from('leads')
+    .select('meta_lead_id')
+    .not('meta_lead_id', 'is', null)
 
+  if (errExist) {
+    await supabase.from('sync_log').insert({
+      fuente: 'meta_ads',
+      creados: 0,
+      omitidos: 0,
+      errores: [errExist.message],
+      ok: false,
+    })
+    return { statusCode: 500, body: JSON.stringify({ error: errExist.message }) }
+  }
+
+  const existentesSet = new Set(existentesData.map((e) => e.meta_lead_id))
+
+  // ── 2. Armar la lista de leads realmente nuevos, sin pegarle a la base fila por fila ──
+  const nuevos = []
   for (const row of rows) {
     const metaId = row['id']?.trim()
-    if (!metaId) continue
-
-    const { data: existentes, error: errCheck } = await supabase
-      .from('leads')
-      .select('id')
-      .eq('meta_lead_id', metaId)
-      .limit(1)
-
-    if (errCheck) {
-      errores.push(`${metaId}: ${errCheck.message}`)
-      continue
-    }
-    if (existentes && existentes.length > 0) {
-      omitidos++
-      continue
-    }
+    if (!metaId || existentesSet.has(metaId)) continue
+    existentesSet.add(metaId) // evita duplicados dentro del mismo sheet
 
     const alumnosRaw = row['¿cuántos_alumnos_son_aproximadamente?'] || ''
     const fechaRaw = row['¿tienen_una_fecha_tentativa_para_viajar?'] || ''
@@ -130,44 +129,80 @@ export const handler = async () => {
     const telefono = limpiarTelefono(row['phone_number'])
     const origen = [row['ad_name'], row['campaign_name']].filter(Boolean).join(' · ')
 
-    const nuevoLead = {
-      nombre_completo: nombre,
-      telefono,
-      institucion: institucionRaw.trim() || null,
-      cantidad_alumnos: parseAlumnos(alumnosRaw),
-      fecha_tentativa: parseFecha(fechaRaw),
-      destino_interes: row['ad_name'] || null,
-      estado: 'nuevo',
-      meta_lead_id: metaId,
-      origen: origen || null,
-    }
-
-    const { data: inserted, error: errInsert } = await supabase
-      .from('leads')
-      .insert(nuevoLead)
-      .select('id')
-      .single()
-
-    if (errInsert) {
-      errores.push(`${metaId}: ${errInsert.message}`)
-      continue
-    }
-
     const notaPartes = [`Lead importado automáticamente de Meta (${row['platform'] || 'fb'}).`]
     if (alumnosRaw) notaPartes.push(`Alumnos (respuesta original): "${alumnosRaw}"`)
     if (fechaRaw) notaPartes.push(`Fecha tentativa (respuesta original): "${fechaRaw}"`)
     if (institucionRaw) notaPartes.push(`Institución/localidad (respuesta original): "${institucionRaw}"`)
     if (row['inbox_url']) notaPartes.push(`Chat de Meta: ${row['inbox_url']}`)
 
-    await supabase.from('seguimientos').insert({
-      lead_id: inserted.id,
+    nuevos.push({
+      lead: {
+        nombre_completo: nombre,
+        telefono,
+        institucion: institucionRaw.trim() || null,
+        cantidad_alumnos: parseAlumnos(alumnosRaw),
+        fecha_tentativa: parseFecha(fechaRaw),
+        destino_interes: row['ad_name'] || null,
+        estado: 'nuevo',
+        meta_lead_id: metaId,
+        origen: origen || null,
+      },
       nota: notaPartes.join('\n'),
+    })
+  }
+
+  if (nuevos.length === 0) {
+    await supabase.from('sync_log').insert({
+      fuente: 'meta_ads',
+      creados: 0,
+      omitidos: rows.length,
+      errores: null,
+      ok: true,
+    })
+    return {
+      statusCode: 200,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ creados: 0, omitidos: rows.length, errores: [], total_filas: rows.length }),
+    }
+  }
+
+  // ── 3. Insertar todos los leads nuevos en un solo lote ──
+  const { data: inserted, error: errInsert } = await supabase
+    .from('leads')
+    .insert(nuevos.map((n) => n.lead))
+    .select('id, meta_lead_id')
+
+  if (errInsert) {
+    await supabase.from('sync_log').insert({
+      fuente: 'meta_ads',
+      creados: 0,
+      omitidos: 0,
+      errores: [errInsert.message],
+      ok: false,
+    })
+    return { statusCode: 500, body: JSON.stringify({ error: errInsert.message }) }
+  }
+
+  // ── 4. Insertar el historial (seguimientos) también en un solo lote ──
+  const idPorMeta = Object.fromEntries(inserted.map((r) => [r.meta_lead_id, r.id]))
+  const seguimientosPayload = nuevos
+    .map((n) => ({
+      lead_id: idPorMeta[n.lead.meta_lead_id],
+      nota: n.nota,
       estado_anterior: null,
       estado_nuevo: 'nuevo',
-    })
+    }))
+    .filter((s) => s.lead_id)
 
-    creados++
+  let errSeg = null
+  if (seguimientosPayload.length > 0) {
+    const { error } = await supabase.from('seguimientos').insert(seguimientosPayload)
+    errSeg = error
   }
+
+  const creados = inserted.length
+  const omitidos = rows.length - creados
+  const errores = errSeg ? [`seguimientos: ${errSeg.message}`] : []
 
   await supabase.from('sync_log').insert({
     fuente: 'meta_ads',
