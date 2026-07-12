@@ -81,6 +81,13 @@ export const handler = async () => {
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
     csvText = await resp.text()
   } catch (err) {
+    await supabase.from('sync_log').insert({
+      fuente: 'meta_ads',
+      creados: 0,
+      omitidos: 0,
+      errores: [err.message],
+      ok: false,
+    })
     return {
       statusCode: 502,
       body: JSON.stringify({
@@ -161,6 +168,14 @@ export const handler = async () => {
 
     creados++
   }
+
+  await supabase.from('sync_log').insert({
+    fuente: 'meta_ads',
+    creados,
+    omitidos,
+    errores: errores.length ? errores : null,
+    ok: errores.length === 0,
+  })
 
   return {
     statusCode: 200,

@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import BottomNav from './components/BottomNav'
 import LeadsView from './views/LeadsView'
+import VentasView from './views/VentasView'
+import GastosView from './views/GastosView'
 import MensajesView from './views/MensajesView'
 import StatsView from './views/StatsView'
 import { ToastProvider } from './components/Toast'
@@ -23,6 +25,8 @@ export default function App() {
 
         <main>
           {tab === 'leads' && <LeadsView />}
+          {tab === 'ventas' && <VentasView />}
+          {tab === 'gastos' && <GastosView />}
           {tab === 'mensajes' && <MensajesView />}
           {tab === 'stats' && <StatsView />}
         </main>

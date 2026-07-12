@@ -3,6 +3,7 @@ import { supabase } from '../supabaseClient'
 import { ESTADOS, formatARS, formatFecha, whatsappLink } from '../constants'
 import EstadoBadge from './EstadoBadge'
 import { useToast } from './Toast'
+import VentaFormSheet from './VentaFormSheet'
 
 export default function LeadDetailSheet({ lead, onClose }) {
   const [estado, setEstado] = useState(lead.estado)
@@ -10,6 +11,7 @@ export default function LeadDetailSheet({ lead, onClose }) {
   const [saving, setSaving] = useState(false)
   const [historial, setHistorial] = useState([])
   const [loadingHist, setLoadingHist] = useState(true)
+  const [convirtiendo, setConvirtiendo] = useState(false)
   const showToast = useToast()
 
   useEffect(() => {
@@ -114,6 +116,13 @@ export default function LeadDetailSheet({ lead, onClose }) {
           </a>
         )}
 
+        <button
+          onClick={() => setConvirtiendo(true)}
+          className="mt-4 w-full rounded-xl border-2 border-teal py-2.5 text-sm font-semibold text-teal-dark active:scale-[0.99] transition"
+        >
+          💰 Convertir a venta
+        </button>
+
         <div className="mt-5">
           <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
             Cambiar estado
@@ -187,6 +196,8 @@ export default function LeadDetailSheet({ lead, onClose }) {
           Cerrar
         </button>
       </div>
+
+      {convirtiendo && <VentaFormSheet lead={lead} onClose={() => setConvirtiendo(false)} />}
     </div>
   )
 }

@@ -9,6 +9,7 @@ export default function LeadsView() {
   const { rows: leads, loading } = useRealtimeTable('leads', { order: 'created_at', ascending: false })
   const [search, setSearch] = useState('')
   const [filtroEstado, setFiltroEstado] = useState('todos')
+  const [orden, setOrden] = useState('recientes')
   const [selected, setSelected] = useState(null)
   const [sincronizando, setSincronizando] = useState(false)
   const showToast = useToast()
@@ -30,7 +31,7 @@ export default function LeadsView() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
-    return leads.filter((l) => {
+    let list = leads.filter((l) => {
       const matchEstado = filtroEstado === 'todos' || l.estado === filtroEstado
       if (!matchEstado) return false
       if (!q) return true
@@ -41,7 +42,19 @@ export default function LeadsView() {
         l.destino_interes?.toLowerCase().includes(q)
       )
     })
-  }, [leads, search, filtroEstado])
+    list = [...list].sort((a, b) => {
+      if (orden === 'recientes') return new Date(b.created_at) - new Date(a.created_at)
+      if (orden === 'nombre') return (a.nombre_completo || '').localeCompare(b.nombre_completo || '')
+      if (orden === 'alumnos') return Number(b.cantidad_alumnos || 0) - Number(a.cantidad_alumnos || 0)
+      if (orden === 'fecha_tentativa') {
+        if (!a.fecha_tentativa) return 1
+        if (!b.fecha_tentativa) return -1
+        return new Date(a.fecha_tentativa) - new Date(b.fecha_tentativa)
+      }
+      return 0
+    })
+    return list
+  }, [leads, search, filtroEstado, orden])
 
   return (
     <div className="px-4 pt-4">
@@ -65,6 +78,19 @@ export default function LeadsView() {
         placeholder="Buscar por nombre, escuela, teléfono…"
         className="mt-3 w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/20"
       />
+
+      <div className="mt-3">
+        <select
+          value={orden}
+          onChange={(e) => setOrden(e.target.value)}
+          className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 focus:border-teal focus:outline-none"
+        >
+          <option value="recientes">Más recientes</option>
+          <option value="nombre">Nombre A-Z</option>
+          <option value="alumnos">Más alumnos</option>
+          <option value="fecha_tentativa">Fecha tentativa</option>
+        </select>
+      </div>
 
       <div className="mt-3 flex gap-2 overflow-x-auto pb-1 -mx-4 px-4">
         <Chip active={filtroEstado === 'todos'} onClick={() => setFiltroEstado('todos')} label="Todos" />
