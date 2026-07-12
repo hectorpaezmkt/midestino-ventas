@@ -31,18 +31,23 @@ export default function PublicidadView() {
   const [rango, setRango] = useState('mes')
   const [sincronizando, setSincronizando] = useState(false)
   const [mostrarManual, setMostrarManual] = useState(false)
+  const [errorDetalle, setErrorDetalle] = useState(null)
   const showToast = useToast()
 
   async function sincronizarMeta() {
     setSincronizando(true)
+    setErrorDetalle(null)
     try {
       const resp = await fetch('/.netlify/functions/sync-meta-ads-spend', { method: 'POST' })
       const data = await resp.json()
-      if (!resp.ok) throw new Error(data.error || 'Error al sincronizar')
+      if (!resp.ok) {
+        throw new Error(data.detalle ? `${data.error} ${data.detalle}` : data.error || 'Error al sincronizar')
+      }
       showToast(`${data.actualizados ?? 0} filas de gasto actualizadas ✓`)
     } catch (err) {
       console.error(err)
-      showToast('No se pudo sincronizar el gasto de Meta', 'error')
+      setErrorDetalle(err.message)
+      showToast('No se pudo sincronizar con Meta', 'error')
     } finally {
       setSincronizando(false)
     }
@@ -98,6 +103,13 @@ export default function PublicidadView() {
           {sincronizando ? 'Sincronizando…' : '↻ Sincronizar Meta'}
         </button>
       </div>
+
+      {errorDetalle && (
+        <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700 break-words">
+          <p className="font-semibold">Detalle del error:</p>
+          <p className="mt-1">{errorDetalle}</p>
+        </div>
+      )}
 
       <div className="mt-3 flex gap-2 overflow-x-auto pb-1 -mx-4 px-4">
         {RANGOS.map((r) => (
