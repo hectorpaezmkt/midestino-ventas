@@ -26,12 +26,17 @@ function inicioDeRango(rango) {
 }
 
 export default function PublicidadView() {
-  const { rows: gastoAds, loading: loadingGasto } = useRealtimeTable('gasto_ads', { order: 'fecha', ascending: false })
+  const {
+    rows: gastoAds,
+    loading: loadingGasto,
+    refetch: refetchGasto,
+  } = useRealtimeTable('gasto_ads', { order: 'fecha', ascending: false })
   const { rows: leads, loading: loadingLeads } = useRealtimeTable('leads')
   const [rango, setRango] = useState('mes')
   const [sincronizando, setSincronizando] = useState(false)
   const [mostrarManual, setMostrarManual] = useState(false)
   const [errorDetalle, setErrorDetalle] = useState(null)
+  const [ultimaSincronizacion, setUltimaSincronizacion] = useState(null)
   const showToast = useToast()
 
   async function sincronizarMeta() {
@@ -43,6 +48,8 @@ export default function PublicidadView() {
       if (!resp.ok) {
         throw new Error(data.detalle ? `${data.error} ${data.detalle}` : data.error || 'Error al sincronizar')
       }
+      await refetchGasto()
+      setUltimaSincronizacion(new Date())
       showToast(`${data.actualizados ?? 0} filas de gasto actualizadas ✓`)
     } catch (err) {
       console.error(err)
@@ -93,7 +100,7 @@ export default function PublicidadView() {
       <div className="flex items-center justify-between gap-2">
         <div>
           <h1 className="text-xl font-bold text-slate-800">Publicidad</h1>
-          <p className="text-sm text-slate-500">Rendimiento por campaña</p>
+          <p className="text-sm text-slate-500">Inversión y costo por cliente potencial</p>
         </div>
         <button
           onClick={sincronizarMeta}
@@ -129,10 +136,19 @@ export default function PublicidadView() {
       </div>
 
       <div className="mt-3 grid grid-cols-3 gap-2">
-        <MiniStat label="Gasto" value={formatARS(totales.gasto)} />
-        <MiniStat label="Leads" value={totales.leadsCount} />
-        <MiniStat label="Costo/lead" value={totales.costoPorLead ? formatARS(totales.costoPorLead) : '—'} />
+        <MiniStat label="Inversión total" value={formatARS(totales.gasto)} />
+        <MiniStat label="Clientes" value={totales.leadsCount} />
+        <MiniStat
+          label="Costo/cliente"
+          value={totales.costoPorLead !== null ? formatARS(totales.costoPorLead) : '—'}
+        />
       </div>
+
+      <p className="mt-2 text-center text-[11px] text-slate-400">
+        {ultimaSincronizacion
+          ? `Actualizado ${ultimaSincronizacion.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}`
+          : 'Los importes se sincronizan automáticamente con Meta durante el día'}
+      </p>
 
       {loading ? (
         <p className="py-10 text-center text-sm text-slate-400">Cargando…</p>
@@ -145,13 +161,14 @@ export default function PublicidadView() {
           {porCampana.map((c) => (
             <div key={c.nombre} className="rounded-2xl border border-slate-200 bg-white p-4">
               <p className="truncate font-semibold text-slate-800">{c.nombre}</p>
-              <div className="mt-2 flex items-center justify-between text-sm">
-                <span className="text-slate-500">{c.leads} leads</span>
-                <span className="font-semibold text-orange-dark">{formatARS(c.gasto)}</span>
+              <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+                <CampaignStat label="Gasto total" value={formatARS(c.gasto)} accent />
+                <CampaignStat label="Clientes" value={c.leads} />
+                <CampaignStat
+                  label="Costo/cliente"
+                  value={c.leads > 0 ? formatARS(c.gasto / c.leads) : '—'}
+                />
               </div>
-              {c.leads > 0 && (
-                <p className="mt-1 text-xs text-slate-400">Costo por lead: {formatARS(c.gasto / c.leads)}</p>
-              )}
             </div>
           ))}
         </div>
@@ -174,6 +191,17 @@ function MiniStat({ label, value }) {
     <div className="rounded-xl bg-slate-50 p-2.5 text-center">
       <p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">{label}</p>
       <p className="mt-0.5 text-sm font-bold text-slate-700">{value}</p>
+    </div>
+  )
+}
+
+function CampaignStat({ label, value, accent = false }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-[9px] font-medium uppercase leading-tight tracking-wide text-slate-400">{label}</p>
+      <p className={`mt-1 truncate text-xs font-bold ${accent ? 'text-orange-dark' : 'text-slate-700'}`}>
+        {value}
+      </p>
     </div>
   )
 }
